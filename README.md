@@ -959,6 +959,13 @@ CI installs the same pinned Python and locked tools, runs all hooks and the
 offline test/build checks, and retains the generated installer artifacts. CI does
 not deploy to a module or validate a live optical link.
 
+Dependabot groups scheduled uv and GitHub Actions version bumps into one
+weekly pull request. Security updates can arrive sooner and are grouped within
+each ecosystem. Dependabot PRs targeting `main` merge automatically when both
+`Quality checks` and `Offline tests and build` succeed on the current PR
+revision. The same checks apply to major version bumps. A failed check leaves
+the PR open for investigation.
+
 | Path | Contents |
 | --- | --- |
 | `src/` | Runtime discovery/repair, TOML parsing, setup phases, and binary guards |

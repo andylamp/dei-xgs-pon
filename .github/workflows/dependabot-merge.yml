@@ -1,0 +1,59 @@
+name: Merge Dependabot updates
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: ["dependabot/**"]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      BASE_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Require both CI jobs to have passed
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" |
+            jq -e '
+              [.jobs[] | select(.name == "Quality checks" or .name == "Offline tests and build")] |
+              (map(.name) | sort) == ["Offline tests and build", "Quality checks"] and
+              all(.[]; .status == "completed" and .conclusion == "success")
+            ' >/dev/null
+
+      - name: Merge the tested Dependabot commit
+        shell: bash
+        run: |
+          # The workflow_run payload can omit its associated pull requests.
+          pr_number=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+            -f state=open -f base="$BASE_BRANCH" -f head="$GITHUB_REPOSITORY_OWNER:$HEAD_BRANCH" |
+            jq -r '
+              map(select(
+                .state == "open" and .draft == false and .user.login == "dependabot[bot]" and
+                .head.repo.full_name == env.GITHUB_REPOSITORY and .base.repo.full_name == env.GITHUB_REPOSITORY and
+                .head.ref == env.HEAD_BRANCH and .head.sha == env.HEAD_SHA and .base.ref == env.BASE_BRANCH
+              )) | if length == 1 then .[0].number else empty end
+            ')
+          if [[ -z "$pr_number" ]]; then
+            echo "No eligible open Dependabot PR at the tested commit."
+            exit 0
+          fi
+          gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
