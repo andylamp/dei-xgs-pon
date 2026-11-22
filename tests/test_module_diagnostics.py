@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise bounded, read-only module observations with synthetic PON samples."""
 
 import fcntl

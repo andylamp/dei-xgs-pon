@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Installer/rollback tests using the same offline fake module as the worker."""
 
 import fcntl

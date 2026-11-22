@@ -41,9 +41,11 @@ md_gem_deltas() {
     LC_ALL=C awk -v members="$1" '
         function less(a,b) {return length(a)!=length(b) ? length(a)<length(b) : ("x" a)<("x" b)}
         function delta(a,b,  i,j,borrow,digit,out) {
-            for(i=length(a),j=length(b); i>0; i--,j--) {
+            j=length(b)
+            for(i=length(a); i>0; i--) {
                 digit=substr(a,i,1)-(j>0 ? substr(b,j,1) : 0)-borrow
                 borrow=(digit<0); out=(digit+10*borrow) out
+                j--
             }
             sub(/^0+/,"",out); return length(out) ? out : "0"
         }
@@ -125,7 +127,10 @@ module_gem_snapshot() {
         printf '%s\n' "${md_identity}" >"${S}/gem-window.identity"
         return $?
     fi
-    md_gem_deltas "${DEI_GEMS}" "${S}/gem-window.first" "${S}/gem-window.last" >"${S}/gem-window.delta" || return 1
+    if ! md_gem_deltas "${DEI_GEMS}" "${S}/gem-window.first" "${S}/gem-window.last" >"${S}/gem-window.delta"; then
+        echo 'GEM counters unavailable: counter comparison failed.'
+        return 1
+    fi
     while read -r md_port md_rx md_errors md_state; do
         case "${md_state}" in
             missing)

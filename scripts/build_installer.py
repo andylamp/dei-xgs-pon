@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Bundle the configuration-driven DEI setup tool for BusyBox modules."""
 
 import hashlib

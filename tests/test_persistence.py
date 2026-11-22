@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Offline contract tests for the DEI repair scripts; no device access.
 
 Run from the checkout: python3 -m unittest discover -s tests -v
