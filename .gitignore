@@ -1,0 +1,20 @@
+# Generated artifacts and Python tooling
+/dist/*
+/.venv/*
+__pycache__/*
+*.py[cod]
+.pytest_cache/*
+.ruff_cache/*
+.coverage
+
+# Private per-device configuration and captures
+/local/*
+/config/dei-pon.toml
+.env
+.env.*
+*.pcap
+*.pcapng
+
+# Local investigation notes and reports
+/scratch/*
+/report/*

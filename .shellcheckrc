@@ -1,0 +1,3 @@
+# The module runtime and generated installer target BusyBox ash.
+shell=sh
+enable=all

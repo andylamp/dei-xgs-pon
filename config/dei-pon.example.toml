@@ -1,0 +1,55 @@
+# DEI PON configuration, schema 1.
+# This file is data, never a shell script. Keep it private: serial identifies your ONU.
+#
+# Supported TOML subset: the sections/keys below, true/false, nonnegative
+# decimal integers, single- or double-quoted strings, and # comments.
+# Escapes/backslashes, multiline strings, arrays, dotted keys and repeated
+# sections/keys are unsupported and rejected. All optional keys have the
+# defaults shown here. schema_version is required.
+schema_version = 1
+
+[internet]
+# 835: normal DEI Internet; 836: DEI static-IP service. Both use DHCP.
+vlan = 835
+# 3 = downstream-only unicast encryption; 1 = both directions.
+# Keep the setting verified on your own line.
+encryption_key_ring = 3
+# Permit repair only of the recognized incorrect VLAN rewrite for this service.
+normalize_vlan = true
+
+[watcher]
+enabled = true
+interval_seconds = 10 # 5..300
+
+[library_patch]
+# Binary patching is disabled unless you explicitly opt in here.
+# A check can recommend the patch without applying it or enabling this setting.
+enabled = false
+# auto: allow assessment; application also requires enabled = true and all guards.
+# never: forbid applying the optional binary patch even when enabled is true.
+policy = "auto"
+
+[onu]
+# Blank identity strings preserve existing values.
+# FRESH SETUP: fill the serial and explicitly choose a MIB profile below.
+serial = "" # Four vendor letters followed by eight hexadecimal digits.
+omcc_version = "0xA0" # 0x82..0xBF; hexadecimal letters are normalized to uppercase.
+vendor_id = "" # Empty or four alphanumeric characters.
+equipment_id = "" # At most 20 bytes.
+hardware_version = "" # At most 14 bytes.
+# preserve: retain the existing selected MIB; no profile is guessed on fresh setup.
+# native_1u: native single Ethernet UNI; dei_0205: the guide's sole UNI 0x0205.
+mib_profile = "preserve"
+
+[management]
+# Empty IPv4 fields preserve existing settings. IPv6 is unsupported here.
+ip_address = ""
+netmask = ""
+gateway = ""
+ping_ip = ""
+failsafe_delay = 30 # 0..300 seconds; the BFW firmware variant enforces a minimum of 10.
+
+[storage]
+# auto: manage persistence only when required by the selected setup.
+# enabled: request persistent root; preserve: retain existing root policy.
+persistent_root = "auto"

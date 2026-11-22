@@ -1,0 +1,83 @@
+[project]
+name = "dei-xgs-pon"
+version = "0.1.0"
+description = "Configuration-driven DEI Fiber setup for 8311 XGS-PON modules"
+readme = "README.md"
+requires-python = ">=3.15.2"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "actionlint-py>=1.7.12.25",
+    "prek>=0.5.10",
+    "pymarkdownlnt>=0.9.41",
+    "pytest>=9.2.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.17.5",
+    "shellcheck-py>=0.11.0.1",
+    "shfmt-py>=4.2.0",
+    "ty>=0.0.103",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.13.8"
+
+[tool.ruff]
+target-version = "py315"
+line-length = 120
+preview = true
+extend-exclude = ["tests/fixtures", "dist", "local"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Match Ruff's formatter and choose one of each conflicting docstring style.
+    "incorrect-blank-line-before-class",
+    "multi-line-summary-second-line",
+    "missing-trailing-comma",
+    # The project has not assigned copyright notices or a license.
+    "missing-copyright-notice",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# These are standalone command-line scripts, not importable packages.
+"scripts/*.py" = ["print", "implicit-namespace-package"]
+# Literal module programs cannot be reflowed by the Python formatter.
+"scripts/build_installer.py" = ["line-too-long"]
+"tests/test_persistence.py" = ["line-too-long"]
+"tests/test_libponnet.py" = ["line-too-long"]
+"tests/test_setup_engine.py" = ["line-too-long"]
+# Keep unittest's assertions/lifecycle and its deliberately large regression suites.
+# The harness executes controlled mock processes and is collected from tests/.
+"tests/*.py" = [
+    "assert",
+    "implicit-namespace-package",
+    "print",
+    "pytest-unittest-assertion",
+    "start-process-with-partial-path",
+    "subprocess-without-shell-equals-true",
+    "suspicious-subprocess-import",
+    "too-many-public-methods",
+]
+
+[tool.ty.environment]
+python-version = "3.15"
+extra-paths = ["tests"]
+
+[tool.ty.src]
+include = ["scripts", "tests"]
+exclude = ["tests/fixtures"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "--strict-config --strict-markers -ra -n auto --maxprocesses=4"
+filterwarnings = ["error"]
+
+[tool.pymarkdown]
+mode.strict-config = true
+extensions.markdown-tables.enabled = true
+plugins.MD013.line_length = 120
+plugins.MD013.code_blocks = false
+plugins.MD013.tables = false

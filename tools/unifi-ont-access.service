@@ -1,0 +1,16 @@
+[Unit]
+Description=Enable LAN management access to the SFP+ ONT
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/data/unifi-ont-access
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /data/unifi-ont-access/unifi-ont-access.sh
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=15s
+
+[Install]
+WantedBy=multi-user.target
