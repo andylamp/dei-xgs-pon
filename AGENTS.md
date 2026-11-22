@@ -92,7 +92,7 @@ UNI-0x0205 MIB or claim that rollback reverses live settings.
 
 ## Development checks
 
-Use the pinned Python 3.15.2, `uv` 0.13.8 or newer, the checked-in lockfile, and
+Use the pinned Python 3.15.2, `uv` 0.13.7 or newer, the checked-in lockfile, and
 host BusyBox. `make dev` synchronizes the locked development environment and
 installs the local `prek` commit hook. Linters and formatters come from the locked
 `uv` environment, including ShellCheck; the module runtime remains BusyBox shell.

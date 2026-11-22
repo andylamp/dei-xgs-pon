@@ -1,6 +1,7 @@
 version: 2
 
 updates:
+  # Keep tool.uv.required-version compatible with the uv bundled by this updater.
   - package-ecosystem: uv
     directory: /
     schedule:

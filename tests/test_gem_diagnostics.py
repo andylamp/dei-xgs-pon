@@ -1,6 +1,7 @@
 """Check GEM counter and encryption observations through the offline installer."""
 
 import json
+import shutil
 import unittest
 
 import test_module_diagnostics as support
@@ -167,12 +168,23 @@ class GemDiagnosticsTests(unittest.TestCase):
         self.assertEqual([], self.omci_reads())
 
     def test_large_counters_preserve_single_packet_deltas(self) -> None:
-        """Preserve one additional packet beyond the exact range of an awk double."""
+        """Compare 64-bit counters exactly with the BusyBox applet and the host awk."""
         first = FIRST.replace("491   48805   491", "9007199254740992 48805 9007199254740992")
         last = LAST.replace("507   50407   500", "9007199254740993 50407 9007199254740993")
-        report = self.diagnose(last, first=first)
-        self.assertIn("GEM 1084: downstream-delta=1 key-error-delta=1 (rising key errors)", report)
-        self.assertEqual([["meadg", "268", "1084", "1"], ["meadg", "268", "1084", "10"]], self.omci_reads())
+        launcher = self.helper.fixture.bin / "launch-ash"
+        original = launcher.read_text()
+        # Standalone ash can prefer applets over PATH. Select each awk explicitly.
+        commands = {"busybox": '"$DEI_TEST_BUSYBOX" awk'}
+        if host_awk := shutil.which("awk"):
+            self.helper.env["DEI_TEST_HOST_AWK"] = host_awk
+            commands["host"] = '"$DEI_TEST_HOST_AWK"'
+        for label, command in commands.items():
+            with self.subTest(awk=label):
+                launcher.write_text(f'awk() {{ {command} "$@"; }}\n' + original)
+                self.module.configure_pon([self.module.sample(300), self.module.sample(302)])
+                report = self.diagnose(last, first=first)
+                self.assertIn("GEM 1084: downstream-delta=1 key-error-delta=1 (rising key errors)", report)
+                self.assertEqual([["meadg", "268", "1084", "1"], ["meadg", "268", "1084", "10"]], self.omci_reads())
 
     def test_changed_mapper_membership_blocks_comparison(self) -> None:
         """Reject repeated Port-IDs if the selected service changes between snapshots."""

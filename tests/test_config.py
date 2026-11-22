@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Offline schema and safety tests for the dependency-free TOML loader."""
 
 from __future__ import annotations

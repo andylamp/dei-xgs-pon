@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """End-to-end installer branches for the optional binary patch, offline only."""
 
 import unittest

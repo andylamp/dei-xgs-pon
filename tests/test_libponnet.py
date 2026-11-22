@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Offline libponnet patch tests using synthetic bytes, never vendor binaries."""
 
 from __future__ import annotations

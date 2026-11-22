@@ -134,7 +134,7 @@ logs are private, and symlinks or special files at managed log paths are refused
 
 ## Build and configure
 
-Development uses Python **3.15.2**, selected by `.python-version`, `uv` 0.13.8 or
+Development uses Python **3.15.2**, selected by `.python-version`, `uv` 0.13.7 or
 newer, and a host installation of BusyBox. The locked development environment
 provides the linters and formatters, including ShellCheck; they do not need
 separate system installations. The module itself still runs BusyBox shell and
