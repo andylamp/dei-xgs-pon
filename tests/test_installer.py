@@ -12,7 +12,7 @@ from typing import cast
 import test_persistence as support
 from paths import BUSYBOX, DIST, FIXTURES
 
-RUNTIME = ("dei-config.sh", "dei-835-lib.sh", "keyring.sh", "status.sh", "vlan_fixes_hook.sh")
+RUNTIME = ("dei-config.sh", "dei-835-lib.sh", "dei-lct.sh", "keyring.sh", "status.sh", "vlan_fixes_hook.sh")
 
 
 @unittest.skipUnless(BUSYBOX, "BusyBox is required to exercise the target shell")
@@ -136,7 +136,7 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def assert_runtime_absent(self) -> None:
-        """Verify all five managed runtime paths are absent."""
+        """Verify every managed runtime path is absent."""
         for name in RUNTIME:
             self.assertFalse(os.path.lexists(self.conf / name), name)
 
@@ -202,7 +202,7 @@ class InstallerTests(unittest.TestCase):
         """Reject a corrupted embedded payload before changing installed files."""
         corrupted = self.fixture.root / "corrupted.sh"
         text = (DIST / "dei-pon-install.sh").read_text()
-        corrupted.write_text(text.replace("No device identity, MIB or bridge-port changes.", "CORRUPTED PAYLOAD", 1))
+        corrupted.write_text(text.replace("No device identity or MIB changes.", "CORRUPTED PAYLOAD", 1))
         result = self.invoke("install", corrupted)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("Payload checksum failed", result.stderr)

@@ -1,5 +1,6 @@
 #!/bin/sh
-# DEI selected-service repair. No device identity, MIB or bridge-port changes.
+# DEI selected-service repair. No device identity or MIB changes. The only
+# bridge-port code is the separate dei-lct.sh, loaded on explicit TOML opt-in.
 DEI_DIR=${DEI_PON_CONF_DIR:-${DEI835_CONF_DIR:-/ptconf/8311}}
 # Shared location for the watcher PID/lock and the status command.
 # shellcheck disable=SC2034
@@ -20,6 +21,8 @@ dei_runtime_config() {
     DEI_NORMALIZE=true
     DEI_WATCH_ENABLED=true
     DEI_INTERVAL=10
+    # Management recovery stays unknown until a configuration is established.
+    DEI_LCT_ENABLED=unknown
     dei_select_config_path
     if [ -n "${DEI_PON_CONFIG_PATH+x}${DEI835_CONFIG_PATH+x}" ]; then
         [ -n "${dei_config_path}" ] && [ -f "${dei_config_path}" ] && [ -r "${dei_config_path}" ] || {
@@ -29,6 +32,7 @@ dei_runtime_config() {
     else
         if [ ! -e "${dei_config_path}" ] && [ ! -L "${dei_config_path}" ]; then
             DEI_CONFIG_SIGNATURE="835:3:true:true:10"
+            DEI_LCT_ENABLED=false
             return 0
         fi
         [ -f "${dei_config_path}" ] && [ -r "${dei_config_path}" ] || {
@@ -53,32 +57,41 @@ dei_runtime_config() {
     DEI_NORMALIZE=${CFG_INTERNET_NORMALIZE_VLAN}
     DEI_WATCH_ENABLED=${CFG_WATCHER_ENABLED}
     DEI_INTERVAL=${CFG_WATCHER_INTERVAL_SECONDS}
+    DEI_LCT_ENABLED=${CFG_MANAGEMENT_RECOVERY_ENABLED}
     DEI_CONFIG_SIGNATURE="${DEI_VLAN}:${DEI_ENCRYPTION}:${DEI_NORMALIZE}:${DEI_WATCH_ENABLED}:${DEI_INTERVAL}"
 }
 
-dei_find_pon_command() {
-    DEI_PON_COMMAND=
-    dei_pon_root=${DEI835_MODULE_ROOT:-}
-    dei_pon_scope=$(readlink -f "${dei_pon_root:-/}" 2>/dev/null) || return 1
-    [ -z "${dei_pon_root}" ] || [ "${dei_pon_scope}" != / ] || return 1
-    dei_pon_search=${PATH:-}
-    while [ -n "${dei_pon_search}" ]; do
-        dei_pon_directory=${dei_pon_search%%:*}
-        if [ -n "${dei_pon_directory}" ] && [ -f "${dei_pon_directory}/pon" ] && [ -x "${dei_pon_directory}/pon" ]; then
-            dei_pon_candidate=$(readlink -f "${dei_pon_directory}/pon" 2>/dev/null) || dei_pon_candidate=
-            if [ -n "${dei_pon_candidate}" ]; then
-                case "${dei_pon_candidate}" in
-                    "${dei_pon_scope%/}"/*)
-                        DEI_PON_COMMAND="${dei_pon_directory}/pon"
+# Resolve a vendor command for a bounded call. It must be a real file inside
+# the module root, so a timeout never runs a host or shell-function stand-in.
+dei_find_module_command() {
+    DEI_MODULE_COMMAND=
+    dei_command_root=${DEI835_MODULE_ROOT:-}
+    dei_command_scope=$(readlink -f "${dei_command_root:-/}" 2>/dev/null) || return 1
+    [ -z "${dei_command_root}" ] || [ "${dei_command_scope}" != / ] || return 1
+    dei_command_search=${PATH:-}
+    while [ -n "${dei_command_search}" ]; do
+        dei_command_directory=${dei_command_search%%:*}
+        if [ -n "${dei_command_directory}" ] && [ -f "${dei_command_directory}/$1" ] && [ -x "${dei_command_directory}/$1" ]; then
+            dei_command_candidate=$(readlink -f "${dei_command_directory}/$1" 2>/dev/null) || dei_command_candidate=
+            if [ -n "${dei_command_candidate}" ]; then
+                case "${dei_command_candidate}" in
+                    "${dei_command_scope%/}"/*)
+                        DEI_MODULE_COMMAND="${dei_command_directory}/$1"
                         return 0
                         ;;
                     *) ;; # Keep searching PATH for a command inside the module.
                 esac
             fi
         fi
-        case "${dei_pon_search}" in *:*) dei_pon_search=${dei_pon_search#*:} ;; *) break ;; esac
+        case "${dei_command_search}" in *:*) dei_command_search=${dei_command_search#*:} ;; *) break ;; esac
     done
     return 1
+}
+
+dei_find_pon_command() {
+    DEI_PON_COMMAND=
+    dei_find_module_command pon || return 1
+    DEI_PON_COMMAND=${DEI_MODULE_COMMAND}
 }
 
 dei_prepare_pon_read() {
@@ -147,6 +160,33 @@ dei_log() {
     [ "${DEI_LOGGING:-0}" = 1 ] || return 0
     DEI_LOG_BUFFER="${DEI_LOG_BUFFER:-}$*
 "
+}
+
+# Load the optional management-port helper once, and only after the saved
+# TOML has explicitly enabled it.
+dei_lct_load() {
+    [ "${DEI_LCT_LOADED:-0}" != 1 ] || return 0
+    [ -f "${DEI_DIR}/dei-lct.sh" ] && [ -r "${DEI_DIR}/dei-lct.sh" ] || return 1
+    . "${DEI_DIR}/dei-lct.sh" || return 1
+    DEI_LCT_LOADED=1
+}
+
+# Read-only management-port summary for check and status output.
+dei_report_management() {
+    case "${DEI_LCT_ENABLED:-unknown}" in
+        true) ;;
+        false)
+            dei_log 'Management recovery: disabled; no switch bridge-port reads or writes.'
+            return 0
+            ;;
+        *) return 0 ;;
+    esac
+    dei_log 'Management recovery: enabled; the watcher restores only a verified, stable detached LCT bridge port.'
+    if ! dei_lct_load; then
+        dei_log 'Management port: the recovery helper is missing or unreadable; no changes authorized.'
+        return 0
+    fi
+    dei_lct_report
 }
 
 dei_log_ready() {

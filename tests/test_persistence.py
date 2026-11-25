@@ -269,6 +269,14 @@ try:
             failsafe.touch()
         if event.get("stop"):
             (Path(os.environ["DEI835_RUN_DIR"]) / "stop").touch()
+        for port, record in event.get("switch", {}).items():
+            target = Path(os.environ["DEI835_MOCK_SWITCH"]) / ("port." + port)
+            if record is None:
+                target.unlink(missing_ok=True)
+            else:
+                target.write_text(record + "\n")
+        for interface in event.get("interfaces", []):
+            (Path(os.environ["DEI835_NET_DIR"]) / interface).touch()
     else:
         raise AssertionError("Unexpected fake device command: " + name)
 except Exception as error:
@@ -336,6 +344,8 @@ class ModuleEvent(TypedDict, total=False):
     config_text: str
     failsafe: bool
     stop: bool
+    switch: dict[str, str | None]
+    interfaces: list[str]
 
 
 class ModuleMockState(TypedDict):

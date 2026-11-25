@@ -9,6 +9,7 @@ dei_read_pon psg || {
 }
 if dei_discover; then
     dei_report_discovery
+    dei_report_management
     for dei_gem in ${DEI_GEMS}; do
         if dei_counter=$(dei_read_pon gpcg "${dei_gem}"); then
             printf '%s\n' "${dei_counter}"
@@ -23,6 +24,7 @@ if dei_discover; then
     done
 else
     dei_report_discovery
+    dei_report_management
     dei_status_result=1
 fi
 dei_pid=$(cat "${DEI_RUN}/worker.pid" 2>/dev/null)

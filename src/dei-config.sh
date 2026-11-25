@@ -104,12 +104,14 @@ dei_config_load() {
         field("management.gateway","string","")
         field("management.ping_ip","string","")
         field("management.failsafe_delay","integer","30")
+        field("management_recovery.enabled","boolean","false")
         field("storage.persistent_root","string","auto")
         sections["internet"]=1
         sections["watcher"]=1
         sections["library_patch"]=1
         sections["onu"]=1
         sections["management"]=1
+        sections["management_recovery"]=1
         sections["storage"]=1
     }
     {
@@ -159,6 +161,7 @@ dei_config_load() {
         if(values["internet.encryption_key_ring"]!="1" && values["internet.encryption_key_ring"]!="3") fail("internet.encryption_key_ring must be 1 or 3")
         if(values["watcher.interval_seconds"]+0<5 || values["watcher.interval_seconds"]+0>300) fail("watcher.interval_seconds must be 5..300")
         if(values["management.failsafe_delay"]+0>300) fail("management.failsafe_delay must be 0..300")
+        if(values["management_recovery.enabled"]=="true" && values["watcher.enabled"]!="true") fail("management_recovery.enabled requires watcher.enabled = true")
         if(values["library_patch.policy"]!="auto" && values["library_patch.policy"]!="never") fail("library_patch.policy must be auto or never")
         if(values["onu.mib_profile"]!="preserve" && values["onu.mib_profile"]!="native_1u" && values["onu.mib_profile"]!="dei_0205") fail("unsupported onu.mib_profile")
         if(values["storage.persistent_root"]!="auto" && values["storage.persistent_root"]!="enabled" && values["storage.persistent_root"]!="preserve") fail("unsupported storage.persistent_root")
@@ -208,6 +211,7 @@ dei_config_load() {
             management.gateway) CFG_MANAGEMENT_GATEWAY=${dei_cfg_value} ;;
             management.ping_ip) CFG_MANAGEMENT_PING_IP=${dei_cfg_value} ;;
             management.failsafe_delay) CFG_MANAGEMENT_FAILSAFE_DELAY=${dei_cfg_value} ;;
+            management_recovery.enabled) CFG_MANAGEMENT_RECOVERY_ENABLED=${dei_cfg_value} ;;
             storage.persistent_root) CFG_STORAGE_PERSISTENT_ROOT=${dei_cfg_value} ;;
             *)
                 CFG_CONFIG_ERROR="internal parser field mismatch"

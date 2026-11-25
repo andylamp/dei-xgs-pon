@@ -41,7 +41,7 @@ install_audit_start() {
     INSTALL_AUDIT_ACTIVE=1
     install_audit_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ') || install_audit_time=unavailable
     install_audit_note "run action=${ACTION:?installer action is required} time=${install_audit_time}" || return 1
-    install_audit_note "selection vlan=${CFG_INTERNET_VLAN:?validated configuration is required} encryption=${CFG_INTERNET_ENCRYPTION_KEY_RING:?validated configuration is required} patch-enabled=${CFG_LIBRARY_PATCH_ENABLED:?validated configuration is required} policy=${CFG_LIBRARY_PATCH_POLICY:?validated configuration is required}" || return 1
+    install_audit_note "selection vlan=${CFG_INTERNET_VLAN:?validated configuration is required} encryption=${CFG_INTERNET_ENCRYPTION_KEY_RING:?validated configuration is required} patch-enabled=${CFG_LIBRARY_PATCH_ENABLED:?validated configuration is required} policy=${CFG_LIBRARY_PATCH_POLICY:?validated configuration is required} management-recovery=${CFG_MANAGEMENT_RECOVERY_ENABLED:?validated configuration is required}" || return 1
     echo "Installation audit: ${INSTALL_AUDIT_FILE}"
 }
 
