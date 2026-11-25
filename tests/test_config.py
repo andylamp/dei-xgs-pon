@@ -30,6 +30,7 @@ DEFAULTS = {
     "CFG_MANAGEMENT_GATEWAY": "",
     "CFG_MANAGEMENT_PING_IP": "",
     "CFG_MANAGEMENT_FAILSAFE_DELAY": "30",
+    "CFG_MANAGEMENT_RECOVERY_ENABLED": "false",
     "CFG_STORAGE_PERSISTENT_ROOT": "auto",
 }
 
@@ -305,7 +306,7 @@ persistent_root = 'enabled'
 
     def test_boolean_types_are_strict(self) -> None:
         """Reject numeric, quoted, or differently cased boolean substitutes."""
-        for section in ("watcher", "library_patch"):
+        for section in ("watcher", "library_patch", "management_recovery"):
             for value in ("1", "0", "True", "FALSE", "'true'", "yes"):
                 with self.subTest(section=section, value=value):
                     self.assert_invalid(f"schema_version=1\n[{section}]\nenabled={value}\n")
@@ -324,6 +325,42 @@ persistent_root = 'enabled'
             "schema_version=1\n[library_patch]\nenabled=false\npolicy='never'\n",
             CFG_LIBRARY_PATCH_POLICY="never",
         )
+
+    def test_management_recovery_is_an_explicit_opt_in(self) -> None:
+        """Keep bridge-port recovery off unless its own section enables it."""
+        self.assert_valid("schema_version=1\n[management]\nfailsafe_delay=30\n")
+        self.assert_valid("schema_version=1\n[management_recovery]\nenabled=false\n")
+        self.assert_valid(
+            "schema_version=1\n[management_recovery]\nenabled = true # reviewed\n",
+            CFG_MANAGEMENT_RECOVERY_ENABLED="true",
+        )
+        self.assert_valid(
+            "schema_version=1\n[management_recovery]\nenabled=true\n[watcher]\nenabled=true\ninterval_seconds=30\n",
+            CFG_MANAGEMENT_RECOVERY_ENABLED="true",
+            CFG_WATCHER_INTERVAL_SECONDS="30",
+        )
+
+    def test_management_recovery_requires_the_watcher(self) -> None:
+        """Reject an opt-in that no running component could ever act on."""
+        for contents in (
+            "schema_version=1\n[watcher]\nenabled=false\n[management_recovery]\nenabled=true\n",
+            "schema_version=1\n[management_recovery]\nenabled=true\n[watcher]\nenabled=false\n",
+        ):
+            with self.subTest(contents=contents):
+                result = self.assert_invalid(contents)
+                self.assertIn(b"management_recovery.enabled requires watcher.enabled = true", result.stderr)
+        self.assert_valid(
+            "schema_version=1\n[watcher]\nenabled=false\n[management_recovery]\nenabled=false\n",
+            CFG_WATCHER_ENABLED="false",
+        )
+
+    def test_management_recovery_accepts_no_bridge_port_settings(self) -> None:
+        """Refuse configured switch values; the port is discovered, never supplied."""
+        for key in ("bridge_port = 4", "port = 4", "map = '0x1'", "policy = 'auto'"):
+            with self.subTest(key=key):
+                self.assert_invalid(f"schema_version=1\n[management_recovery]\nenabled=true\n{key}\n")
+        self.assert_invalid("schema_version=1\n[management]\nrecovery=true\n")
+        self.assert_invalid("schema_version=1\n[management_recovery]\n[management_recovery]\nenabled=true\n")
 
     def test_watcher_and_failsafe_boundaries(self) -> None:
         """Accept boundary timings and reject values outside allowed ranges."""

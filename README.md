@@ -7,7 +7,9 @@ self-contained BusyBox shell installer, configured through one private TOML file
 The tool selects either Internet VLAN 835 or 836, discovers the selected service's
 current mapper and GEM ports, and repairs supported VLAN and encryption settings.
 It can also prepare ONU identity, management settings, a supported MIB profile,
-persistent storage, and the guide's conditional UNI-0x0205 library patch.
+persistent storage, and the guide's conditional UNI-0x0205 library patch. An
+opt-in watcher function can restore the module's management port when OMCI
+provisioning detaches it.
 
 Setup is based on the [DEI Fiber guide](https://rg.spes.gr/dei-fiber-8311/) and the
 [8311 firmware project](https://github.com/djGrrr/8311-was-110-firmware-builder).
@@ -31,6 +33,12 @@ supports the equal-ID layout observed on the original line; it does not guess a
 different instance ID if that check fails. The new readback guard also needs
 physical validation. Support is limited to recognized configuration patterns;
 this is not a universal ONT provisioning tool.
+
+[Optional management-port recovery](#optional-management-port-recovery) is the
+one function that writes a hardware bridge port. It is disabled by default. Its
+supported port layout and restore command come from the DEI guide's single test
+unit, and this project has exercised it only against an offline stand-in for the
+switch utility.
 
 ## What GEMs are and why they are needed
 
@@ -186,6 +194,7 @@ never sourced as shell code.
 | `library_patch` | Explicit binary-patch opt-in and assessment/application policy |
 | `onu` | Serial, OMCC version, identity fields, and MIB profile |
 | `management` | Module IPv4 settings and failsafe startup delay |
+| `management_recovery` | Explicit opt-in to restore a detached management port |
 | `storage` | Persistent-root policy |
 
 The example selects VLAN 835 and downstream-only encryption, preserves blank
@@ -291,6 +300,17 @@ variant also enforces a 10-second minimum. The default of 30 seconds is within
 both variants' bounds. A failsafe file can prevent OMCI startup entirely,
 regardless of this delay. See the
 [v2.8.3 startup code](https://github.com/djGrrr/8311-was-110-firmware-builder/blob/v2.8.3/mods/common-mods.sh#L56-L65).
+
+#### `[management_recovery]`
+
+| Setting | Default | Meaning and accepted values |
+| --- | --- | --- |
+| `enabled` | `false` | Explicit permission for the watcher to restore the management (LCT) switch port after OMCI provisioning detaches it. `true` also requires `[watcher] enabled = true`; the combination with a disabled watcher is rejected. |
+
+There is no bridge-port setting: the tool discovers the port and accepts no
+configured number, bridge, or map. Read
+[Optional management-port recovery](#optional-management-port-recovery) before
+turning this on. With `false`, the runtime never runs the switch utility.
 
 #### `[storage]`
 
@@ -564,7 +584,7 @@ firmware image. Run the build and SSH commands below on **your computer**, from
 this repository's root directory. Python and `uv` are not required on the stick.
 
 Start with vanilla 8311 firmware or a previous release of this project. The
-installer supplies the complete runtime. Its five script paths must be empty
+installer supplies the complete runtime. Its six script paths must be empty
 or contain verified files from this project. On a clean stick, go directly to
 step 1.
 
@@ -592,6 +612,11 @@ Prepare the installer and TOML first, then run the normal `check` and `install`
 after cleanup. If the preview finds a modified script, another version, or an
 unrecognized `lctfix.sh`, review that file before proceeding. The cleanup tool
 ships in the repository and runs separately from the installer.
+
+The guide's `lctfix.sh` restored the management port. This project offers that
+repair as [optional management-port recovery](#optional-management-port-recovery).
+Remove the guide's helper first; two programs writing the same port can undo
+each other's work.
 
 ### 1. Prepare and edit a private configuration
 
@@ -751,6 +776,7 @@ The guide's troubleshooting checks are covered as follows:
 | Sample `pon psg` six times, 20 seconds apart | Optional `diagnose` command detects observed state transitions, decreasing state age, unavailable samples and module-restart evidence. |
 | Inspect GEM encryption when key errors increase | `diagnose` compares downstream packet and key-error counters for the selected service across the observation window. For rising errors it checks the OMCI Port-ID and reads the Encryption Key Ring for a verified instance. |
 | List `/ptconf/8311` | Reports type, mode and size for managed files and directories; omits unrelated names and file contents. Installation and rollback verify the active project scripts. |
+| Inspect bridge ports 3, 4 and 9 | Not read by default. With management recovery enabled, `check` and `status.sh` report the discovered management port read-only. The table scan reads other ports only to rule them out. |
 
 To collect the longer observation window on the stick:
 
@@ -846,10 +872,10 @@ log and lock paths are shared across both VLANs and across upgrades.
 Key-error counters are cumulative: compare increases while traffic flows rather
 than requiring an old nonzero count to become zero.
 
-The watcher reloads Internet and watcher settings from the saved TOML. Identity,
-MIB, management, and boot-policy changes require running the installer again and
-following any reported reboot phases. Use `check` and `install --config PATH`
-when updating your private configuration.
+The watcher reloads Internet, watcher and management-recovery settings from the
+saved TOML. Identity, MIB, management-address, and boot-policy changes require
+running the installer again and following any reported reboot phases. Use
+`check` and `install --config PATH` when updating your private configuration.
 
 Available actions are:
 
@@ -870,6 +896,95 @@ It does not undo live VLAN/encryption settings or restart services. Binary
 restoration is separate and requires a verified backup, ownership, and a safe
 maintenance state. Restoring the stock library while retaining a sole
 UNI-0x0205 MIB recreates the compatibility problem.
+
+### Optional management-port recovery
+
+The 8311 firmware answers SSH and its web interface on the **LCT** (local craft
+terminal) interface, `eth0_0_1_lct`. Inside the module's switch, that interface
+is a *bridge port* that forwards only to the CPU. The DEI guide found that OMCI
+provisioning can empty this port's forwarding map, and on some boots also moves
+the port into the service bridge. The management address then stops answering,
+even though Internet service can keep working. The guide's `lctfix.sh` helper
+put the port back.
+
+This tool offers the same repair inside its existing watcher. It is **disabled
+by default**, and it is the only function that writes a hardware bridge port:
+
+```toml
+[management_recovery]
+enabled = true
+```
+
+Edit the existing section in your private TOML, upload the candidate, and run
+`check` and `install` as usual. No reboot is needed for this setting alone. The
+installer refuses the opt-in when the module lacks `switch_cli` or `timeout`.
+
+| Guide `lctfix.sh` | This tool |
+| --- | --- |
+| Writes fixed bridge port 4 | Scans the switch's bridge-port table and requires exactly one port with the management identity |
+| Waits for the guide's own fixed values on bridge port 9 | Waits for the selected Internet service to be verified healthy, or for the fallback window |
+| Rewrites any state that is not the healthy one | Writes only the two detached states the guide recorded; reports any other state and leaves it alone |
+| Runs for 10 minutes after each firmware hook event | Runs for as long as the watcher runs |
+
+**Finding the port.** The supported layout is the one the guide recorded on a
+WAS-110 with 8311 v2.8.3: the management port is sub-interface 1 of logical
+port 4. The tool first requires exactly one interface named `<UNI>_1_lct` whose
+parent interface exists. It then reads bridge ports 1–127 and accepts a single
+port with that identity. Several matches, no match, or a switch that does not
+answer stop the function without a write. The bridge-port number is never
+assumed and cannot be configured.
+
+**Deciding to write.** On each poll the watcher reads the discovered port. It
+restores the port only when all of these hold:
+
+- Firmware failsafe is absent and `8311_fix_vlans` is `2`.
+- The port shows one of the two recorded detached states: an empty map in
+  bridge 0, or an empty map in bridge 1.
+- Two consecutive polls saw the same record and the same set of GEM and mapper
+  interfaces. A changed interface set means provisioning is still moving.
+- The selected Internet service was verified healthy in that poll. Otherwise the
+  detached state must stay unchanged for 120 seconds. This fallback keeps the
+  module reachable when the service itself cannot settle.
+- A final read immediately before the write returns the same record.
+
+**The write.** The watcher sends the guide's restore command to the discovered
+port: bridge 0, a CPU-only map `0x1`, and egress extended VLAN handling off. It
+reads the port back and logs the outcome in `dei835.log`. After three writes
+that fail or have no effect, it stops retrying until the port's state changes.
+A table scan that cannot identify the port is repeated at most every five
+minutes.
+
+With the opt-in set, `check` and `status.sh` add a read-only summary. **Sample
+output only**; the bridge-port number is discovered on your module:
+
+```text
+Management recovery: enabled; the watcher restores only a verified, stable detached LCT bridge port.
+Management port: interface=eth0_0_1_lct bridge-port=4 state=healthy bridge=0x0 logical-port=0x4 sub-interface=0x1 map=0x1
+```
+
+`state` is `healthy`, `detached`, or `unsupported`. An unsupported state, or
+the message `no bridge port presents the supported LCT identity`, means your
+module does not match the recorded layout. The watcher then makes no change.
+
+Limits to keep in mind:
+
+- This function has been tested only against an offline stand-in for
+  `switch_cli`. The layout, the detached states, and the restore command come
+  from the guide's single unit. Verify the `check` summary on your own module
+  before relying on it.
+- It needs the watcher. `enabled = true` with `[watcher] enabled = false` is
+  rejected.
+- It repairs the switch port only. It does not change the module's IP settings,
+  your gateway's route or SNAT rule, or the SSH service.
+- It does nothing while firmware failsafe exists. `omcid` is not running then,
+  so provisioning cannot detach the port.
+- If you cannot reach the module to enable it, use the `failsafe_delay` window
+  after a reboot. The guide reports that management answers during that window.
+
+To turn the function off, set `enabled = false` and run `install` again. The
+watcher reads the saved TOML on its next poll and discards any pending sample.
+Turning it off, `rollback`, and `uninstall` do not undo an earlier restore. The
+switch keeps its live state until reprovisioning or a reboot.
 
 ### Return to 8311 without custom runtime scripts
 

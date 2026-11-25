@@ -49,6 +49,13 @@ gateway = ""
 ping_ip = ""
 failsafe_delay = 30 # 0..300 seconds; the BFW firmware variant enforces a minimum of 10.
 
+[management_recovery]
+# Restores SSH and web access when OMCI provisioning detaches the management
+# (LCT) port inside the module's switch. This is the tool's only hardware
+# bridge-port write, so it stays off unless you explicitly opt in here.
+# true also requires [watcher] enabled = true. Read the README section first.
+enabled = false
+
 [storage]
 # auto: manage persistence only when required by the selected setup.
 # enabled: request persistent root; preserve: retain existing root policy.

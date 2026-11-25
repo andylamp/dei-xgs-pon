@@ -12,6 +12,7 @@ configuration for a real ONU, and the tests do not contact network devices.
 | `v0.1.0-diagnostics/` | Exact runtime payloads from commit `725de37`, before the safety audit | Preserve upgrades when service verification and diagnostic safeguards are tightened |
 | `v0.1.0-audit/` | Exact runtime payloads at commit `f83d6da` | Preserve upgrades from the audited runtime before enabling all ShellCheck rules |
 | `v0.1.0-vanilla/` | Runtime from the vanilla installer before the VLAN-neutral configuration selector | Verify upgrades from installations using the earlier hook |
+| `v0.1.0-selector/` | Exact runtime payloads at commit `0661fc6`, before optional management-port recovery | Preserve upgrades when the sixth, opt-in runtime file is added |
 
 The files in `guide/` are synthetic. They do **not** contain the original guide's
 scripts and are never executed. `guide/hashes.json` records the original-script

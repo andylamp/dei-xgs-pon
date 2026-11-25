@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src"
 OUTPUT = ROOT / "dist"
 VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-FILES = ("dei-config.sh", "dei-835-lib.sh", "keyring.sh", "status.sh", "vlan_fixes_hook.sh")
+FILES = ("dei-config.sh", "dei-835-lib.sh", "dei-lct.sh", "keyring.sh", "status.sh", "vlan_fixes_hook.sh")
 PAYLOADS = (
     *FILES,
     "libponnet-patch.sh",
@@ -109,7 +109,7 @@ parts.extend((
     "        *) return 1;;\n    esac\n}\n",
     f'PAYLOADS="{" ".join(PAYLOADS)}"\n',
     r"""
-FILES="dei-config.sh dei-835-lib.sh keyring.sh status.sh vlan_fixes_hook.sh"
+FILES="dei-config.sh dei-835-lib.sh dei-lct.sh keyring.sh status.sh vlan_fixes_hook.sh"
 for name in ${PAYLOADS}; do
     expected=$(new_hash "${name}") && actual=$(sha "${S}/${name}") && [ "${expected}" = "${actual}" ] || die "Payload checksum failed: ${name}"
     sh -n "${S}/${name}" || die "Payload syntax failed: ${name}"
@@ -154,7 +154,7 @@ runtime_files_check() {
 runtime_files_remove() {
     runtime_files_check || return 1
     # Stop event-driven startup first; the caller holds firmware and worker locks.
-    for runtime_name in vlan_fixes_hook.sh keyring.sh status.sh dei-835-lib.sh dei-config.sh; do
+    for runtime_name in vlan_fixes_hook.sh keyring.sh status.sh dei-lct.sh dei-835-lib.sh dei-config.sh; do
         runtime_file_check "${runtime_name}" || return 1
         if [ "${RUNTIME_FILE_STATE}" != absent ]; then rm "${D}/${runtime_name}" || return 1; fi
     done
@@ -281,6 +281,13 @@ chmod 600 "${S}/config.toml"
 dei_config_load "${S}/config.toml" || die "Invalid configuration; nothing changed"
 echo "Configuration validated. Selected WAN VLAN: ${CFG_INTERNET_VLAN}"
 echo "Encryption key ring: ${CFG_INTERNET_ENCRYPTION_KEY_RING}; library patch enabled: ${CFG_LIBRARY_PATCH_ENABLED}; policy: ${CFG_LIBRARY_PATCH_POLICY}"
+echo "Management recovery enabled: ${CFG_MANAGEMENT_RECOVERY_ENABLED}"
+if [ "${CFG_MANAGEMENT_RECOVERY_ENABLED}" = true ]; then
+    # The opt-in needs the vendor switch utility and a way to bound its calls.
+    for cmd in switch_cli timeout; do
+        command -v "${cmd}" >/dev/null 2>&1 || die "Management recovery is enabled, but a required command is missing: ${cmd}"
+    done
+fi
 case "${ACTION}" in install|patch-library) install_audit_start || die "Cannot create the private installation audit; no configuration changes";; *) :;; esac
 
 lp_assess > "${S}/library-report.txt"
@@ -402,6 +409,9 @@ fi
 install_audit_note "setup reboot-required=${SETUP_REBOOT_REQUIRED:-0} patch-applied=${LP_APPLIED:-0}" || die "Setup finished but its audit result could not be saved"
 echo "Saved configuration: ${D}/dei-pon.toml"
 echo "Match the UDMP WAN VLAN to ${CFG_INTERNET_VLAN}. No automatic restart/reboot or hardware bridge-port writes were made."
+if [ "${CFG_MANAGEMENT_RECOVERY_ENABLED}" = true ]; then
+    echo "Management recovery is enabled: the watcher may later restore the verified LCT bridge port."
+fi
 """,
 ))
 OUTPUT.mkdir(parents=True, exist_ok=True)

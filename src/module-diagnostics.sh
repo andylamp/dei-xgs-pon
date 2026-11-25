@@ -10,7 +10,7 @@ module_inventory() {
     case "${md_omcc}" in 0x8[2-9A-F] | 0x[9AB][0-9A-F]) ;; '') md_omcc='unset' ;; *) md_omcc=unrecognized ;; esac
     echo "  8311_fix_vlans=${md_mode}; 8311_omcc_version=${md_omcc}"
     echo 'Managed file inventory (contents and unrelated files omitted):'
-    for md_name in dei-pon.toml dei.ini dei-config.sh dei-835-lib.sh keyring.sh status.sh vlan_fixes_hook.sh dei835.log install.log setup-state; do
+    for md_name in dei-pon.toml dei.ini dei-config.sh dei-835-lib.sh dei-lct.sh keyring.sh status.sh vlan_fixes_hook.sh dei835.log install.log setup-state; do
         md_file="${D:?installer configuration directory is required}/${md_name}"
         if [ -L "${md_file}" ]; then
             echo "  ${md_name}: symlink (not followed)"

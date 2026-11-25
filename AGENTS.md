@@ -8,7 +8,7 @@ Python builds artifacts and runs offline tests. Device protocol implementations
 and vendor firmware belong to their upstream projects.
 
 - `src/`: configuration parser, runtime service discovery and repair, phased
-  setup, and guarded library operations.
+  setup, guarded library operations, and the opt-in management-port helper.
 - `tools/remove-guide-scripts.sh`: standalone, one-time removal of the known
   external guide scripts. Keep their fingerprints and removal logic outside the
   installer and its release archive.
@@ -58,6 +58,16 @@ check modes stdout-only with no persistent audit writes. Installation audits mus
 be private, bounded, and sanitized; do not copy raw configuration or OMCI logs.
 Log complete stable/new mappings and changed failures without repeating identical
 discovery snapshots on every poll.
+
+Management-port (LCT) recovery is the only hardware bridge-port write. It
+requires explicit `[management_recovery] enabled = true`, stays disabled by
+default, and lives in `src/dei-lct.sh`, which the runtime loads only after that
+opt-in. Discover the port from the switch table and the LCT interface name;
+never hard-code its number or accept one from configuration. Write only the
+recorded detached preimages, after matching consecutive samples and either a
+verified healthy service or the unchanged fallback window, then verify the
+readback. Bound every `switch_cli` call, keep check and status read-only, and
+never write another bridge port. Keep its hardware-validation limits explicit.
 
 Repair only the selected service. Preserve native passthrough rules and unrelated
 services. Multi-rule normalization must recover safely from partial application.

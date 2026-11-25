@@ -114,7 +114,15 @@ class ConfigInstallerTests(unittest.TestCase):
 
     def test_historical_project_runtimes_upgrade_and_rollback_to_absence(self) -> None:
         """Upgrade every distributed project runtime on a clean baseline."""
-        versions = ("v1", "v0.1.0", "v0.1.0-toolchain", "v0.1.0-diagnostics", "v0.1.0-audit", "v0.1.0-vanilla")
+        versions = (
+            "v1",
+            "v0.1.0",
+            "v0.1.0-toolchain",
+            "v0.1.0-diagnostics",
+            "v0.1.0-audit",
+            "v0.1.0-vanilla",
+            "v0.1.0-selector",
+        )
         for version in versions:
             with self.subTest(version=version):
                 for previous in (FIXTURES / version).glob("*.sh"):

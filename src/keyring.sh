@@ -1,6 +1,7 @@
 #!/bin/sh
 # DEI selected-service repair. One background watcher per boot/session.
 # Polling interval and behavior come from dei-pon.toml; writes require a verified mismatch.
+# Optional management-port recovery runs only in the watcher, after explicit opt-in.
 DEI_DIR=${DEI_PON_CONF_DIR:-${DEI835_CONF_DIR:-/ptconf/8311}}
 . "${DEI_DIR}/dei-835-lib.sh" || exit 1
 case "${1:---watch}" in
@@ -11,25 +12,32 @@ case "${1:---watch}" in
         ;;
 esac
 
+# A check also prints the read-only management-port summary. One-shot repair
+# leaves that port to the watcher, which alone can observe a stable sample.
+dei_report_inspection() {
+    dei_report_discovery
+    [ "${DEI_MODE}" != --check ] || dei_report_management
+}
+
 if [ "${DEI_MODE}" != --watch ]; then
     dei_discover || {
-        dei_report_discovery
+        dei_report_inspection
         exit 1
     }
     DEI_FIRST=${DEI_SIGNATURE}
     sleep "${DEI835_SETTLE_SECONDS:-1}"
     dei_discover || {
-        dei_report_discovery
+        dei_report_inspection
         exit 1
     }
     [ "${DEI_FIRST}" = "${DEI_SIGNATURE}" ] || {
         DEI_DISCOVERY_VALID=0
         DEI_ERROR="Provisioning changed; retry after it settles"
-        dei_report_discovery
+        dei_report_inspection
         exit 1
     }
     if [ "${DEI_MODE}" = --check ]; then
-        dei_report_discovery
+        dei_report_inspection
         exit 0
     fi
     mkdir -p "${DEI_RUN}" || exit 1
@@ -64,6 +72,7 @@ DEI_LAST_BLOCKED_DISCOVERY=
 DEI_PASSES=0
 while :; do
     DEI_APPLY_INVALIDATED=0
+    DEI_SERVICE_SETTLED=0
     [ ! -e "${DEI_RUN}/stop" ] || {
         dei_log "Watcher stopped on request"
         break
@@ -96,6 +105,7 @@ while :; do
             DEI_LAST_BLOCKED_DISCOVERY=
             if dei_apply; then
                 DEI_REPORT="Healthy VLAN ${DEI_VLAN}: ${DEI_MAPPER} GEMs=${DEI_GEMS}"
+                DEI_SERVICE_SETTLED=1
             else
                 DEI_REPORT="Repair incomplete; will retry"
             fi
@@ -128,6 +138,19 @@ while :; do
     if [ "${DEI_REPORT}" != "${DEI_LAST_REPORT}" ]; then
         dei_log "${DEI_REPORT}"
         DEI_LAST_REPORT=${DEI_REPORT}
+    fi
+    # Management recovery follows the selected service's own repair and needs
+    # the same confirmed hook-only mode. It never widens what that repair may
+    # change, and a cleared opt-in discards every pending sample.
+    if [ "${DEI_CONFIG_READY}" = 1 ] && [ "${DEI_FIX_MODE}" = 2 ] && [ "${DEI_LCT_ENABLED}" = true ]; then
+        if dei_lct_load; then
+            dei_lct_watch "${DEI_SERVICE_SETTLED}"
+        elif [ "${DEI_LCT_MISSING:-0}" != 1 ]; then
+            DEI_LCT_MISSING=1
+            dei_log 'Management port: the recovery helper is missing or unreadable; no changes'
+        fi
+    elif [ "${DEI_LCT_LOADED:-0}" = 1 ]; then
+        dei_lct_forget
     fi
     dei_flush_log || exit 1
     DEI_PASSES=$((DEI_PASSES + 1))
